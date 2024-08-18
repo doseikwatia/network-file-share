@@ -1,0 +1,15 @@
+{
+    "@@locale": "en",
+    "appTitle": "BNK Services",
+    "@appTitle": {
+        "description": "Title of web application"
+    },
+    "help": "Select files to be uploaded",
+    "ok": "Ok",
+    "failure": "Failure",
+    "filename": "Filename",
+    "size": "Size",
+    "action": "Action",
+    "upload": "Upload",
+    "add": "Add"
+}
