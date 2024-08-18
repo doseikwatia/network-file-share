@@ -1,4 +1,3 @@
-import 'dart:ffi';
 import 'dart:io';
 import 'dart:math';
 
@@ -20,7 +19,7 @@ class _HomePageState extends State<HomePage> {
   List<String> hostIPs = [];
   String hostIP = "";
   int port = portNumber;
-  String uploadDir = path.join(Directory.current.path,'upload');
+  String uploadDir = path.join(Directory.current.path,'uploads');
   @override
   initState() {
     super.initState();

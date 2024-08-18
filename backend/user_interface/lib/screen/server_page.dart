@@ -28,7 +28,8 @@ class _ServerPageState extends State<ServerPage> {
       securityContext.usePrivateKey(path.join(currentDir, 'cert', 'key.pem'));
       securityContext
           .useCertificateChain(path.join(currentDir, 'cert', 'cert.pem'));
-      server = Server(widget.host, widget.port, securityContext,uploadDir: widget.uploadDir);
+      server = Server(widget.host, widget.port, securityContext,
+          uploadDir: widget.uploadDir);
       server.start();
     } on Exception catch (e) {
       var snackBar = SnackBar(content: Text('Failed to start the server'));

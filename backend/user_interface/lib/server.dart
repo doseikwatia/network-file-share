@@ -6,30 +6,31 @@ import 'package:shelf_flutter_asset/shelf_flutter_asset.dart';
 import 'package:shelf_router/shelf_router.dart';
 import 'package:path/path.dart' as path;
 import 'package:shelf_multipart/shelf_multipart.dart';
+import 'package:shelf_static/shelf_static.dart';
 import 'package:uuid/uuid.dart';
 
 class Server {
   String address;
   String staticDir;
-  String index_file;
+  String indexFile;
   String uploadDir;
-  SecurityContext security_context;
+  SecurityContext securityContext;
   int port;
   HttpServer? server;
-  Uuid uuid = Uuid();
+  Uuid uuid = const Uuid();
 
-  Server(this.address, this.port, this.security_context,
-      {this.staticDir = 'assets/web',
-      this.index_file = 'index.html',
-      this.uploadDir = 'upload'}) {}
+  Server(this.address, this.port, this.securityContext,
+      {this.staticDir = 'web',
+      this.indexFile = 'index.html',
+      this.uploadDir = 'uploads'}) {}
   void start() {
     var router = Router();
     var assetHandler =
-        createAssetHandler(defaultDocument: index_file, rootPath: staticDir);
+        createStaticHandler(staticDir,defaultDocument: indexFile);
     router.get('/<ignored|.*>', assetHandler);
     router.post('/uploads', this.upload);
     shelf_io
-        .serve(router, address, port, securityContext: security_context)
+        .serve(router, address, port, securityContext: securityContext)
         .then((server) {
       this.server = server;
       this.server!.autoCompress = true;
