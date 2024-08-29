@@ -1,6 +1,6 @@
 {
     "@@locale": "en",
-    "appTitle": "BNK Services",
+    "appTitle": "Network Share",
     "@appTitle": {
         "description": "Title of web application"
     },

@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:frontend/constants.dart';
+import 'package:frontend/progress-multipart-request.dart';
 import 'package:humanize_big_int/humanize_big_int.dart';
 import 'package:http/http.dart' as http;
 import 'package:collection/collection.dart';
@@ -22,6 +23,9 @@ class _FileItem {
 
 class _HomePageState extends State<HomePage> {
   List<_FileItem> files = [];
+  bool uploading = false;
+  double uploadProgress = 0.0;
+
   Future<void> _add() async {
     FilePickerResult? result =
         await FilePicker.platform.pickFiles(allowMultiple: true);
@@ -47,12 +51,22 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _uploadProgress(int bytes, int total) {
+    setState(() {
+      uploadProgress = bytes / total;
+    });
+  }
+
   void _uploadFiles() {
-    var request = http.MultipartRequest('POST', Uri.parse(uploadEndpoint));
+    var request = ProgressMultipartRequest(
+        'POST', Uri.parse(uploadEndpoint), _uploadProgress);
     var multipartfiles = files.map((f) => http.MultipartFile.fromBytes(
         'file', f.file.bytes!,
         filename: f.filename));
     request.files.addAll(multipartfiles);
+    setState(() {
+      uploading = true;
+    });
     request.send().then((resp) async {
       String alertMessage = '';
       String alertTitle = AppLocalizations.of(context)!.failure;
@@ -60,7 +74,7 @@ class _HomePageState extends State<HomePage> {
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         var directoryIdBytes = await resp.stream.toBytes();
-        var directoryId =  String.fromCharCodes(directoryIdBytes);
+        var directoryId = String.fromCharCodes(directoryIdBytes);
         alertTitle = 'Success';
         alertMessage = directoryId;
         alertIcon = Icons.check_box;
@@ -97,7 +111,11 @@ class _HomePageState extends State<HomePage> {
       (error, stackTrace) {
         debugPrint(error.toString());
       },
-    );
+    ).whenComplete(() {
+      setState(() {
+        uploading = false;
+      });
+    });
   }
 
   @override
@@ -114,6 +132,13 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            ...(uploading
+                ? [
+                    LinearProgressIndicator(
+                      value: uploadProgress,
+                    )
+                  ]
+                : []),
             ...(files.isEmpty
                 ? [
                     Text(

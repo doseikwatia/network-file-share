@@ -1,4 +1,4 @@
-const authorName = 'Daniel Osei';
+const authorName = 'www.nanas3i.com';
 const authorEmail ='doseikwatia@gmail.com';
-const appTitle='BNK Services';
+const appTitle='Network Share';
 const uploadEndpoint='/uploads';
