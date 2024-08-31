@@ -1,11 +1,12 @@
+import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:frontend/constants.dart';
-import 'package:frontend/progress-multipart-request.dart';
+import 'package:http/http.dart';
 import 'package:humanize_big_int/humanize_big_int.dart';
-import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:collection/collection.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,31 +19,36 @@ class HomePage extends StatefulWidget {
 class _FileItem {
   final String filename;
   final PlatformFile file;
+  double uploadProgress = 0;
+
   _FileItem(this.filename, this.file);
 }
 
 class _HomePageState extends State<HomePage> {
   List<_FileItem> files = [];
   bool uploading = false;
-  double uploadProgress = 0.0;
+  double uploadProgress = 0;
+  int bytesSent = 0;
+  int totalBytes = 0;
 
-  Future<void> _add() async {
-    FilePickerResult? result =
-        await FilePicker.platform.pickFiles(allowMultiple: true);
+  void _add() {
+    FilePicker.platform
+        .pickFiles(allowMultiple: true, withReadStream: true)
+        .then((result) {
+      if (result != null) {
+        var tmpFiles = List<_FileItem>.from(files);
+        tmpFiles.addAll(result.files.map((file) => _FileItem(file.name, file)));
 
-    if (result != null) {
-      var tmpFiles = List<_FileItem>.from(files);
-      tmpFiles.addAll(result.files.map((file) => _FileItem(file.name, file)));
+        var filenames = <dynamic>{};
+        tmpFiles.retainWhere((f) => filenames.add(f.filename));
 
-      var filenames = <dynamic>{};
-      tmpFiles.retainWhere((f) => filenames.add(f.filename));
-
-      setState(() {
-        files = tmpFiles.toList();
-      });
-    } else {
-      // User canceled the picker
-    }
+        setState(() {
+          files = tmpFiles.toList();
+        });
+      } else {
+        // User canceled the picker
+      }
+    });
   }
 
   void _removeFileItemAt(int index) {
@@ -51,101 +57,118 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _uploadProgress(int bytes, int total) {
-    setState(() {
-      uploadProgress = bytes / total;
-    });
-  }
-
   void _uploadFiles() {
-    var request = ProgressMultipartRequest(
-        'POST', Uri.parse(uploadEndpoint), _uploadProgress);
-    var multipartfiles = files.map((f) => http.MultipartFile.fromBytes(
-        'file', f.file.bytes!,
-        filename: f.filename));
-    request.files.addAll(multipartfiles);
     setState(() {
       uploading = true;
     });
-    request.send().then((resp) async {
-      String alertMessage = '';
-      String alertTitle = AppLocalizations.of(context)!.failure;
-      IconData alertIcon = Icons.error;
 
-      if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        var directoryIdBytes = await resp.stream.toBytes();
-        var directoryId = String.fromCharCodes(directoryIdBytes);
-        alertTitle = 'Success';
-        alertMessage = directoryId;
-        alertIcon = Icons.check_box;
-        //successful upload
+    bytesSent = 0;
+    totalBytes = files.fold(
+      0,
+      (preVal, f) => preVal + f.file.size,
+    );
+    var transformer = StreamTransformer.fromHandlers(
+      handleData: (List<int> data, EventSink<List<int>> sink) {
+        bytesSent += data.length;
         setState(() {
-          files = [];
+          uploadProgress = bytesSent.toDouble() / totalBytes.toDouble();
+          print('Upload progress: $uploadProgress');
         });
-      } else {
-        var errorMsg = '${resp.statusCode} ${resp.reasonPhrase}';
-        debugPrint(errorMsg);
-        alertMessage = errorMsg;
-      }
-      showDialog(
-          // ignore: use_build_context_synchronously
-          context: context,
-          builder: (context) => AlertDialog(
-                title: Row(children: [
-                  Icon(alertIcon),
-                  const SizedBox(
-                    width: 10,
-                  ),
-                  Text(alertTitle)
-                ]),
-                content: Text(alertMessage),
-                actions: [
-                  FilledButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                      },
-                      child: Text(AppLocalizations.of(context)!.ok))
-                ],
-              ));
-    }).onError(
-      (error, stackTrace) {
-        debugPrint(error.toString());
+        sink.add(data);
       },
-    ).whenComplete(() {
+    );
+
+    var request = MultipartRequest('POST', Uri.parse(uploadEndpoint))
+      ..files.addAll(files.map((f) => MultipartFile(
+          'file', f.file.readStream!.transform(transformer), f.file.size,
+          filename: f.filename)));
+
+    request.send().whenComplete(() {
       setState(() {
         uploading = false;
       });
+    }).then((resp) {
+      if (!(resp.statusCode >= 200 && resp.statusCode < 300)) {
+        debugPrint("Has failure !!!");
+        showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                content: const Text(
+                    'Something went wrong. Are you on the same network as the server?'),
+                icon: const Icon(Icons.error),
+                title: const Text('Error'),
+                actions: [
+                  FilledButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
+                      child: const Text('Ok'))
+                ],
+              );
+            });
+      } else {
+        resp.stream.toBytes().then((dirIDBytes) {
+          var dirIDStr = String.fromCharCodes(dirIDBytes);
+          setState(() {
+            files = [];
+          });
+          return dirIDStr;
+        }).then((dirID) => showDialog(
+              context: context,
+              builder: (context) {
+                return AlertDialog(
+                  content: Text(
+                      'Uploaded successfully. The upload directory is $dirID'),
+                  icon: const Icon(Icons.done),
+                  title: const Text('Completed'),
+                  actions: [
+                    FilledButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Ok'))
+                  ],
+                );
+              },
+            ));
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    var authorTapRecognizer = TapGestureRecognizer()
+      ..onTap = () {
+        launchUrl(Uri.parse(authorWebsite));
+      };
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text(appTitle),
+        centerTitle: true,
       ),
-      persistentFooterButtons: const [Text('2024 \u00a9 $authorName')],
+      persistentFooterButtons: [
+        Text.rich(TextSpan(
+            text: '2024 \u00a9 $authorName', recognizer: authorTapRecognizer))
+      ],
       persistentFooterAlignment: AlignmentDirectional.center,
       body: Center(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            ...(uploading
-                ? [
-                    LinearProgressIndicator(
-                      value: uploadProgress,
-                    )
-                  ]
-                : []),
             ...(files.isEmpty
-                ? [
-                    Text(
-                      AppLocalizations.of(context)!.help,
-                    )
-                  ]
+                ? [Text(AppLocalizations.of(context)!.help)]
                 : [
+                    ...(uploading
+                        ? [
+                            LinearProgressIndicator(
+                              value: uploadProgress,
+                            )
+                          ]
+                        : []),
                     Expanded(
                       child: SingleChildScrollView(
                         child: DataTable(
@@ -168,16 +191,20 @@ class _HomePageState extends State<HomePage> {
                                       )),
                                       DataCell(
                                           Text('${humanizeInt(f.file.size)}B')),
-                                      DataCell(IconButton(
-                                        icon: const Icon(Icons.close),
-                                        onPressed: () {
-                                          _removeFileItemAt(i);
-                                        },
-                                      )),
+                                      DataCell(uploading
+                                          ? Container() //Empty widget
+                                          : IconButton(
+                                              icon: const Icon(Icons.close),
+                                              onPressed: () {
+                                                _removeFileItemAt(i);
+                                              },
+                                            )),
                                     ]))
                                 .toList()),
                       ),
                     )
+
+//
                   ]),
             Padding(
               padding: const EdgeInsets.all(10),
@@ -187,7 +214,7 @@ class _HomePageState extends State<HomePage> {
                   FilledButton(
                       onPressed: _add,
                       child: Text(AppLocalizations.of(context)!.add)),
-                  ...(files.isNotEmpty
+                  ...((files.isNotEmpty && !uploading)
                       ? [
                           const SizedBox(width: 5),
                           FilledButton(

@@ -50,8 +50,9 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(appTitle),
+        title: const Text(appTitle),
       ),
       body: Center(
         child: SizedBox(

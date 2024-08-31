@@ -20,7 +20,7 @@ class Server {
   Uuid uuid = const Uuid();
 
   Server(this.address, this.port, this.securityContext,
-      {this.staticDir = 'web',
+      {this.staticDir = 'assets/web',
       this.indexFile = 'index.html',
       this.uploadDir = 'uploads'}) {}
   void start() {
@@ -43,6 +43,7 @@ class Server {
   }
 
   Future upload(Request request) async {
+  
     MultipartRequest? multipartRequest = request.multipart();
     if (multipartRequest != null) {
       var dirID = uuid.v6();

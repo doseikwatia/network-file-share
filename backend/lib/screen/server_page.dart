@@ -33,14 +33,14 @@ class _ServerPageState extends State<ServerPage> {
     try {
       var currentDir = Directory.current.absolute.path;
       SecurityContext securityContext = SecurityContext();
-      securityContext.usePrivateKey(path.join(currentDir, 'cert', 'key.pem'));
+      securityContext.usePrivateKey(path.join(currentDir,'assets' ,'cert', 'key.pem'));
       securityContext
-          .useCertificateChain(path.join(currentDir, 'cert', 'cert.pem'));
+          .useCertificateChain(path.join(currentDir,'assets', 'cert', 'cert.pem'));
       server = Server(widget.host, widget.port, securityContext,
           uploadDir: widget.uploadDir);
       server.start();
     } on Exception catch (e) {
-      var snackBar = SnackBar(content: Text('Failed to start the server'));
+      var snackBar = SnackBar(content: const Text('Failed to start the server'));
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
       print(e);
     }
@@ -64,7 +64,11 @@ class _ServerPageState extends State<ServerPage> {
     var screenSize = MediaQuery.of(context).size;
     var fontSize = 20.0;
     return Scaffold(
-      // appBar: AppBar(),
+      appBar: AppBar(
+        centerTitle: true,
+        title: const Text('Server'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
       body: Center(
         child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
